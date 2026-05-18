@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowExpr Playground</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      flex-shrink: 0;
+      padding: 10px 20px;
+      background: #161b22;
+      border-bottom: 1px solid #21262d;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    header h1 { font-size: 1rem; font-weight: 700; color: #58a6ff; }
+    header p  { font-size: 0.78rem; color: #6e7681; }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      overflow: hidden;
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px 16px;
+      overflow-y: auto;
+    }
+    .pane + .pane { border-left: 1px solid #21262d; }
+
+    label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6e7681;
+    }
+
+    textarea {
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      background: #0d1117;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px 12px;
+      resize: vertical;
+      outline: none;
+      width: 100%;
+    }
+    textarea:focus { border-color: #388bfd; }
+    #expr { height: 200px; }
+    #env  { height: 110px; }
+
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      transition: filter 0.12s;
+    }
+    button:hover { filter: brightness(1.15); }
+
+    #run-btn { background: #238636; color: #fff; }
+    #run-btn:active { filter: brightness(0.9); }
+
+    .eg { background: #21262d; color: #8b949e; border: 1px solid #30363d; font-weight: 400; }
+
+    .box {
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 48px;
+    }
+    .box.idle   { color: #3d444d; }
+    .box.ok     { color: #3fb950; }
+    .box.err    { color: #f85149; border-color: #6e2626; }
+    .box.output { color: #8b949e; }
+
+    footer {
+      flex-shrink: 0;
+      padding: 6px 16px;
+      background: #161b22;
+      border-top: 1px solid #21262d;
+      font-size: 0.72rem;
+      color: #3d444d;
+    }
+    footer kbd {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: inherit;
+      color: #8b949e;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>FlowExpr Playground</h1>
+    <p>Re:Earth Flow expression evaluator — running in your browser via WebAssembly</p>
+  </header>
+
+  <main>
+    <!-- Left pane: inputs -->
+    <div class="pane">
+      <label>Expression</label>
+      <textarea id="expr" spellcheck="false" placeholder="1 + 2 * 3"></textarea>
+
+      <label>Environment <span style="font-weight:400;text-transform:none;color:#3d444d">(JSON object — keys become variables)</span></label>
+      <textarea id="env" spellcheck="false">{}</textarea>
+
+      <div class="row">
+        <button id="run-btn">▶ Run</button>
+      </div>
+
+      <label>Examples</label>
+      <div class="row" id="examples"></div>
+    </div>
+
+    <!-- Right pane: outputs -->
+    <div class="pane">
+      <label>Result</label>
+      <div id="result" class="box idle">— run an expression —</div>
+
+      <label>Print output</label>
+      <div id="output" class="box idle">—</div>
+    </div>
+  </main>
+
+  <footer><kbd>Ctrl+Enter</kbd> to run</footer>
+
+  <script type="module">
+    import init, { eval_expr } from './pkg/flowexpr_playground.js';
+
+    const EXAMPLES = [
+      {
+        label: 'Arithmetic',
+        expr: '2 ** 10',
+        env: '{}',
+      },
+      {
+        label: 'Strings',
+        expr: '"hello world".split(" ")[0].len()',
+        env: '{}',
+      },
+      {
+        label: 'If / else',
+        expr: 'x = 42;\nif x % 2 == 0 { "even" } else { "odd" }',
+        env: '{}',
+      },
+      {
+        label: 'Map access',
+        expr: 'feature["name"] + " v" + str(feature["version"])',
+        env: '{\n  "feature": {"name": "reearth", "version": 2}\n}',
+      },
+      {
+        label: 'Loop',
+        expr: 's = 0;\nfor i in [1, 2, 3, 4, 5] { s = s + i };\ns',
+        env: '{}',
+      },
+      {
+        label: 'Print',
+        expr: 'print("processing", 3, "features");\n42',
+        env: '{}',
+      },
+      {
+        label: 'Slice',
+        expr: '"abcde"[::-1]',
+        env: '{}',
+      },
+    ];
+
+    await init();
+
+    const exprEl   = document.getElementById('expr');
+    const envEl    = document.getElementById('env');
+    const resultEl = document.getElementById('result');
+    const outputEl = document.getElementById('output');
+    const egEl     = document.getElementById('examples');
+
+    EXAMPLES.forEach(({ label, expr, env }) => {
+      const btn = document.createElement('button');
+      btn.className = 'eg';
+      btn.textContent = label;
+      btn.addEventListener('click', () => { exprEl.value = expr; envEl.value = env; run(); });
+      egEl.appendChild(btn);
+    });
+
+    function run() {
+      const expr = exprEl.value.trim();
+      if (!expr) {
+        resultEl.textContent = '— enter an expression —';
+        resultEl.className = 'box idle';
+        return;
+      }
+      const envJson = envEl.value.trim() || '{}';
+      let res;
+      try {
+        res = JSON.parse(eval_expr(expr, envJson));
+      } catch (e) {
+        resultEl.textContent = 'Internal error: ' + e.message;
+        resultEl.className = 'box err';
+        return;
+      }
+
+      if (res.ok) {
+        resultEl.textContent = res.result;
+        resultEl.className = 'box ok';
+      } else {
+        resultEl.textContent = res.error;
+        resultEl.className = 'box err';
+      }
+
+      if (res.output && res.output.length > 0) {
+        outputEl.textContent = res.output.join('\n');
+        outputEl.className = 'box output';
+      } else {
+        outputEl.textContent = '—';
+        outputEl.className = 'box idle';
+      }
+    }
+
+    document.getElementById('run-btn').addEventListener('click', run);
+    exprEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(); }
+    });
+
+    // Start with the arithmetic example loaded
+    exprEl.value = EXAMPLES[0].expr;
+    envEl.value  = EXAMPLES[0].env;
+  </script>
+</body>
+</html>
