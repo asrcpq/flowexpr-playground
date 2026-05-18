@@ -1,0 +1,71 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout playground
+        uses: actions/checkout@v4
+        with:
+          path: playground
+
+      # Sibling checkout so the local path dep "../reearth-flow/engine/runtime/expr" resolves
+      - name: Checkout reearth-flow (expr crate only)
+        uses: actions/checkout@v4
+        with:
+          repository: reearth/reearth-flow
+          ref: feat/engine/eval
+          path: reearth-flow
+          sparse-checkout: |
+            engine/Cargo.toml
+            engine/runtime/expr
+
+      - name: Install Rust with wasm32 target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            playground/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('playground/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build
+        working-directory: playground
+        run: wasm-pack build --target web
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: playground
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
