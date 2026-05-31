@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: reearth/reearth-flow
-          ref: feat/engine/eval-cesium
+          ref: main
           path: reearth-flow
           sparse-checkout: |
             engine/Cargo.toml
